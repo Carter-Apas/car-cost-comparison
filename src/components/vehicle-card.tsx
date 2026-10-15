@@ -195,6 +195,31 @@ const EnergyFields = ({
   );
 };
 
+const FeeVerification = ({
+  market,
+  kind,
+  car,
+}: {
+  market: MarketData;
+  kind: "rego" | "ruc";
+  car: Car;
+}) => {
+  if (
+    car[kind === "rego" ? "regoMode" : "rucMode"] !== "official" ||
+    (kind === "ruc" && rucRate(car, market) === 0)
+  )
+    return null;
+  return (
+    <FieldDescription>
+      {market.feesCheckedAt[kind]
+        ? `NZTA ${kind === "rego" ? "schedule" : "rates"} downloaded ${dateLabel(market.feesCheckedAt[kind])}.`
+        : kind === "rego"
+          ? "NZTA reference schedule from 1 July 2026; no successful live download yet."
+          : "NZTA reference rates; no successful live download yet. See Fee sources & rates in use above."}
+    </FieldDescription>
+  );
+};
+
 const FeeFields = ({
   car,
   index,
@@ -242,6 +267,7 @@ const FeeFields = ({
           </NativeSelectOption>
           <NativeSelectOption value="excluded">Exclude rego</NativeSelectOption>
         </SelectField>
+        <FeeVerification car={car} market={market} kind="rego" />
         {car.regoMode === "custom" && (
           <NumberField
             id={`${id}-rego`}
@@ -266,6 +292,7 @@ const FeeFields = ({
           </NativeSelectOption>
           <NativeSelectOption value="excluded">Exclude RUC</NativeSelectOption>
         </SelectField>
+        <FeeVerification car={car} market={market} kind="ruc" />
         {car.rucMode === "custom" && (
           <NumberField
             id={`${id}-ruc`}

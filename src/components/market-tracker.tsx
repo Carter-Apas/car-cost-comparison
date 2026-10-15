@@ -1,6 +1,7 @@
 import { ExternalLink, Fuel, Info, RefreshCw, Zap } from "lucide-react";
 
 import type { MarketData } from "../../shared/market";
+import { sourceUrls } from "../../shared/market";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +120,71 @@ export const MarketTracker = ({
           </AlertDescription>
         </Alert>
       )}
+    <details className="rounded-lg border p-4 text-sm">
+      <summary className="cursor-pointer font-medium">
+        Fee sources & rates in use
+      </summary>
+      <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        <div>
+          <a
+            href={sourceUrls.rego}
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            NZTA rego
+          </a>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {market.feesCheckedAt.rego
+              ? `Last downloaded ${dateLabel(market.feesCheckedAt.rego)}.`
+              : "Reference schedule from 1 July 2026 · not freshly downloaded."}
+          </p>
+          <p className="mt-2">
+            Petrol/hybrid {precise.format(market.rego.petrol)}; diesel/EV{" "}
+            {precise.format(market.rego.diesel)} per year.
+          </p>
+          <p className="mt-1">
+            Petrol motorcycles: up to 60cc{" "}
+            {precise.format(market.motorcycleRego.upTo60)}; 61–250cc{" "}
+            {precise.format(market.motorcycleRego.from61To250)}; 251–750cc{" "}
+            {precise.format(market.motorcycleRego.from251To750)}; over 750cc{" "}
+            {precise.format(market.motorcycleRego.over750)} per year.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Private passenger vehicles, 12 months online, including GST.
+          </p>
+        </div>
+        <div>
+          <a
+            href={sourceUrls.ruc}
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            NZTA RUC
+          </a>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {market.feesCheckedAt.ruc
+              ? `Last downloaded ${dateLabel(market.feesCheckedAt.ruc)}.`
+              : "Reference rates reviewed 15 October 2026 · not freshly downloaded."}
+          </p>
+          <p className="mt-2">
+            Light diesel/EV {precise.format(market.ruc.light)}; petrol PHEV{" "}
+            {precise.format(market.ruc.phev)} per 1,000 km.
+          </p>
+          <p className="mt-1">
+            Administration per licence: online{" "}
+            {precise.format(market.ruc.online)}; agent{" "}
+            {precise.format(market.ruc.agent)}.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Petrol cars and petrol motorcycles have no separate RUC. Vehicle
+            weight and exemptions can change the applicable rate. Custom fees
+            below override these presets.
+          </p>
+        </div>
+      </div>
+    </details>
     <p className="text-xs leading-5 text-muted-foreground">
       Fuel uses Gaspy’s live national averages; residential electricity is
       published quarterly. Electricity includes household fixed charges and is a

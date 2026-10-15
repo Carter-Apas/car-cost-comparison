@@ -2,13 +2,12 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  discoverWorkbook,
-  parseElectricity,
   parseGaspy,
   parseMotorcycleRego,
   parseRego,
   parseRuc,
 } from "./parsers.ts";
+import { fetchElectricity, sourceHtml, SourceAccessError } from "./sources.ts";
 
 import { fallbackMarket, sourceUrls } from "../shared/market.ts";
 import type { MarketData } from "../shared/market.ts";
@@ -88,15 +87,21 @@ const refresh = async (): Promise<MarketData> => {
       Object.assign(next.prices, await fetchFuelPrices());
     })(),
     (async () => {
-      const page = await (await fetchSource(sourceUrls.electricity)).text();
-      const { url, date } = discoverWorkbook(page);
-      next.prices.electric = await parseElectricity(
-        Buffer.from(await (await fetchSource(url)).arrayBuffer()),
-        date,
-      );
+      const { observation, notice } = await fetchElectricity(fetchSource);
+      if (
+        !next.prices.electric.date ||
+        observation.date! >= next.prices.electric.date
+      )
+        next.prices.electric = observation;
+      if (notice)
+        next.errors.push(
+          next.prices.electric.date === observation.date
+            ? notice
+            : `Electricity release page unavailable. Retaining newer saved electricity data dated ${next.prices.electric.date}.`,
+        );
     })(),
     (async () => {
-      const html = await (await fetchSource(sourceUrls.rego)).text();
+      const html = await sourceHtml(await fetchSource(sourceUrls.rego));
       const rego = parseRego(html);
       const motorcycleRego = parseMotorcycleRego(html);
       next.rego = rego;
@@ -104,7 +109,7 @@ const refresh = async (): Promise<MarketData> => {
       next.feesCheckedAt.rego = new Date().toISOString();
     })(),
     (async () => {
-      next.ruc = parseRuc(await (await fetchSource(sourceUrls.ruc)).text());
+      next.ruc = parseRuc(await sourceHtml(await fetchSource(sourceUrls.ruc)));
       next.feesCheckedAt.ruc = new Date().toISOString();
     })(),
   ]);
@@ -117,7 +122,7 @@ const refresh = async (): Promise<MarketData> => {
   results.forEach((result, index) => {
     if (result.status === "rejected") {
       next.errors.push(
-        `${labels[index]} unavailable. Using ${index < 2 ? "saved data or example prices" : "saved reference fees"}.`,
+        `${labels[index]} ${result.reason instanceof SourceAccessError ? "blocked automated access" : "unavailable"}. Using ${index < 2 ? "saved data or example prices" : next.feesCheckedAt[index === 2 ? "rego" : "ruc"] ? "previously downloaded fees" : "the dated NZTA reference rates shown below"}.`,
       );
       console.warn(`${labels[index]}:`, String(result.reason));
     }

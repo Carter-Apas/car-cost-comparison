@@ -35,6 +35,7 @@ test("electricity uses labelled national nominal total, never a city or real-pri
   ]);
   const sheet = book.addWorksheet("Nominal summary");
   sheet.addRows([
+    ["Nominal indicators on 15 August 2026"],
     ["Location", "Lines", "Total price"],
     ["Auckland", 10, 30],
     ["New Zealand", 12, 42.1],

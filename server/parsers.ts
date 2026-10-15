@@ -95,10 +95,28 @@ export const parseElectricity = async (
   await workbook.xlsx.load(
     buffer as unknown as Parameters<typeof workbook.xlsx.load>[0],
   );
+  const reportSheets = workbook.worksheets
+    .filter((sheet) => !/real|raw|historic|time series/i.test(sheet.name))
+    .filter((sheet) => {
+      const dates: string[] = [];
+      sheet.eachRow((row) =>
+        row.eachCell((cell) => {
+          if (typeof cell.value !== "string") return;
+          const match = cell.value.match(
+            /Nominal indicators on\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i,
+          );
+          if (match) dates.push(isoDate(match[1]));
+        }),
+      );
+      return dates.includes(date);
+    });
+  if (!reportSheets.length)
+    throw new Error(
+      "MBIE workbook publication date does not match the requested report",
+    );
   // Read a labelled national total from the current nominal summary. Never average towns,
   // use wholesale prices, or choose an unlabelled numeric cell.
-  for (const sheet of workbook.worksheets) {
-    if (/real|raw|historic|time series/i.test(sheet.name)) continue;
+  for (const sheet of reportSheets) {
     let totalColumn = 0;
     let price: number | null = null;
     sheet.eachRow((row) => {
@@ -238,6 +256,9 @@ export const parseMotorcycleRego = (
     throw new Error("Motorcycle rego schedule format changed");
   return values as MarketData["motorcycleRego"];
 };
+const currencyNumber = (value: string | undefined) =>
+  Number((value ?? "").replace(/[$,\s]/g, ""));
+
 export const parseRuc = (html: string): MarketData["ruc"] => {
   const $ = load(html);
   let light = 0,
@@ -249,10 +270,13 @@ export const parseRuc = (html: string): MarketData["ruc"] => {
       .find("td")
       .toArray()
       .map((td) => $(td).text().replace(/\s+/g, " ").trim());
-    if (cells[0] === "1" && /Up to 3500kg/i.test(cells.join(" ")))
-      light = Number(cells.at(-1));
-    if (cells[0] === "12" && /1001\s*-\s*3500kg/.test(cells.join(" ")))
-      phev = Number(cells.at(-1));
+    if (cells[0] === "1" && /Up to 3[ ,]?500\s*kg/i.test(cells.join(" ")))
+      light = currencyNumber(cells.at(-1));
+    if (
+      cells[0] === "12" &&
+      /1[ ,]?001\s*[-–—]\s*3[ ,]?500\s*kg/.test(cells.join(" "))
+    )
+      phev = currencyNumber(cells.at(-1));
     if (/Online|NZTA app/i.test(cells[0]))
       online = Number(cells[1]?.replace(/[^\d.]/g, ""));
     if (/Counter sales at agents/i.test(cells[0]))
