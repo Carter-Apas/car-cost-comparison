@@ -49,13 +49,13 @@
 }
 
 :root {
-  --background: oklch(0.982 0.012 96);
+  --background: oklch(0.975 0.006 155);
   --foreground: oklch(0.22 0.018 245);
-  --card: oklch(0.998 0.006 96);
+  --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.018 245);
   --popover: oklch(1 0.004 96);
   --popover-foreground: oklch(0.22 0.018 245);
-  --primary: oklch(0.43 0.098 156);
+  --primary: oklch(0.39 0.085 164);
   --primary-foreground: oklch(0.985 0.008 145);
   --secondary: oklch(0.925 0.026 83);
   --secondary-foreground: oklch(0.285 0.025 70);
@@ -64,15 +64,15 @@
   --accent: oklch(0.86 0.091 79);
   --accent-foreground: oklch(0.27 0.028 67);
   --destructive: oklch(0.55 0.2 28);
-  --border: oklch(0.83 0.015 88);
-  --input: oklch(0.9 0.013 88);
+  --border: oklch(0.89 0.012 155);
+  --input: oklch(0.87 0.012 155);
   --ring: oklch(0.56 0.11 156);
   --chart-1: oklch(0.49 0.11 156);
   --chart-2: oklch(0.72 0.12 77);
   --chart-3: oklch(0.47 0.032 248);
   --chart-4: oklch(0.64 0.073 205);
   --chart-5: oklch(0.58 0.13 35);
-  --radius: 0.5rem;
+  --radius: 0.9rem;
   --sidebar: oklch(0.982 0.012 96);
   --sidebar-foreground: oklch(0.22 0.018 245);
   --sidebar-primary: oklch(0.43 0.098 156);
@@ -130,5 +130,312 @@
   button,
   input {
     letter-spacing: 0;
+  }
+}
+
+.app-shell {
+  width: min(1440px, 100%);
+  margin: auto;
+  padding: 0 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.app-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 26px 0;
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 750;
+  font-size: 25px;
+  letter-spacing: -1px;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 11px;
+}
+.brand-mark svg {
+  width: 22px;
+  height: 22px;
+}
+.brand-country {
+  align-self: flex-start;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--muted-foreground);
+  padding-top: 6px;
+}
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 12px 0 6px;
+}
+.page-heading h1 {
+  font-size: clamp(36px, 4.5vw, 62px);
+  font-weight: 650;
+  letter-spacing: -2.6px;
+  line-height: 1.07;
+  margin: 20px 0 16px;
+}
+.page-heading h1 > span {
+  color: var(--primary);
+}
+.page-heading p {
+  color: var(--muted-foreground);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.heading-note {
+  border-left: 2px solid var(--border);
+  padding: 10px 0 10px 22px;
+  margin-bottom: 6px;
+}
+.heading-note p {
+  font-size: 18px;
+  color: var(--foreground);
+  font-weight: 550;
+  margin: 8px 0 4px;
+}
+.heading-note > span:last-child {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.eyebrow {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.price-value {
+  font-size: 31px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+.price-value span {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted-foreground);
+}
+.price-card svg {
+  width: 15px;
+  height: 15px;
+}
+.calculator-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  align-items: start;
+}
+.vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.vehicle-card {
+  height: 100%;
+}
+.vehicle-card [data-slot="card-content"] {
+  flex: 1;
+}
+.vehicle-card [data-slot="card-header"],
+.vehicle-card [data-slot="card-content"],
+.comparison-card [data-slot="card-header"],
+.comparison-card [data-slot="card-content"] {
+  padding-left: 22px;
+  padding-right: 22px;
+}
+.vehicle-card [data-slot="card-header"] {
+  padding-top: 6px;
+}
+.number-control {
+  position: relative;
+}
+.number-control input {
+  height: 40px;
+  padding-right: 90px;
+  font-variant-numeric: tabular-nums;
+}
+.number-control > span {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+input[type="number"] {
+  appearance: textfield;
+}
+input::-webkit-inner-spin-button,
+input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+[data-slot="native-select"],
+.vehicle-card input:not([type="number"]) {
+  height: 40px;
+}
+.usage-card {
+  max-width: 100%;
+}
+.saving-panel {
+  background: var(--muted);
+  padding: 22px;
+  border-radius: 10px;
+}
+.winner-name {
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.saving-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 42px;
+  font-weight: 600;
+  color: var(--primary);
+  letter-spacing: -1.5px;
+  margin: 12px 0 3px;
+  font-variant-numeric: tabular-nums;
+}
+.saving-value svg {
+  width: 28px;
+  height: 28px;
+}
+.comparison-track {
+  height: 8px;
+  background: var(--muted);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.comparison-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--chart-3);
+  transition: width 200ms ease;
+}
+.comparison-bar-electric {
+  background: var(--primary);
+}
+.cost-table {
+  width: 100%;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border-collapse: collapse;
+}
+.cost-table caption {
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.cost-table th {
+  font-weight: 400;
+  text-align: left;
+  color: var(--muted-foreground);
+}
+.cost-table thead th {
+  font-size: 10px;
+  padding-bottom: 10px;
+}
+.cost-table th:not(:first-child),
+.cost-table td {
+  text-align: right;
+  white-space: nowrap;
+}
+.cost-table td,
+.cost-table tbody th {
+  padding: 9px 0;
+}
+.cost-table .table-total > * {
+  border-top: 1px solid var(--border);
+  font-weight: 650;
+  color: var(--foreground);
+  padding-top: 13px;
+}
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 0 32px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.8;
+}
+a:hover {
+  color: var(--primary);
+}
+@media (max-width: 1200px) {
+  .calculator-layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 20px;
+  }
+  .vehicle-grid {
+    gap: 16px;
+  }
+  .app-shell {
+    padding: 0 24px;
+  }
+}
+@media (max-width: 1050px) {
+  .calculator-layout {
+    grid-template-columns: 1fr;
+  }
+  .comparison-card {
+    position: static;
+  }
+  .heading-note {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 0 16px;
+    gap: 24px;
+  }
+  .vehicle-grid {
+    grid-template-columns: 1fr;
+  }
+  .page-heading h1 {
+    letter-spacing: -1.5px;
+  }
+  .app-nav > span {
+    max-width: 110px;
+    text-align: right;
+  }
+  .vehicle-card [data-slot="card-header"],
+  .vehicle-card [data-slot="card-content"] {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }

@@ -1,13 +1,13 @@
-import {
-  BatteryCharging,
-  Fuel,
-  Gauge,
-  RotateCcw,
-  Scale,
-  WalletCards,
-} from "lucide-react";
-import { useMemo, useState } from "react";
+import { CarFront, Check, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
+import { fallbackMarket, sourceUrls } from "../shared/market";
+import type { MarketData } from "../shared/market";
+
+import { NumberField } from "@/components/calculator-fields";
+import { Comparison } from "@/components/comparison";
+import { MarketTracker } from "@/components/market-tracker";
+import { VehicleCard } from "@/components/vehicle-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,540 +15,211 @@ import {
   CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
+import { FieldGroup } from "@/components/ui/field";
+import { defaultCars, defaultUsage, priceKey } from "@/lib/calculator";
+import type { Car, Usage } from "@/lib/calculator";
+import { dateLabel } from "@/lib/format";
 
-type CarForm = {
-  capex: number;
-  dollarsPerKwh: number;
-  dollarsPerLitre: number;
-  isElectric: boolean;
-  kmPerLitre: number;
-  kmPerKwh: number;
-  name: string;
-  opex: number;
-  rucPer1000Km: number;
+const fetchMarket = async (
+  force: boolean,
+  signal?: AbortSignal,
+): Promise<MarketData> => {
+  const response = await fetch(`/api/market${force ? "?refresh=1" : ""}`, {
+    signal,
+  });
+  if (!response.ok) throw new Error("Market service unavailable");
+  const data = (await response.json()) as MarketData;
+  if (!data.prices?.electric || !data.rego || !data.motorcycleRego || !data.ruc)
+    throw new Error("Invalid market response");
+  return data;
 };
-
-type Assumptions = {
-  annualKm: number;
-  ownershipYears: number;
-};
-
-type CarTotals = {
-  annualEnergyCost: number;
-  annualRucCost: number;
-  annualRunningCost: number;
-  costPerKm: number;
-  energyCostPerKm: number;
-  ownershipTotal: number;
-  rawCostPerKm: number;
-};
-
-const defaultAssumptions: Assumptions = {
-  annualKm: 15000,
-  ownershipYears: 5,
-};
-
-const defaultCars: [CarForm, CarForm] = [
-  {
-    capex: 32000,
-    dollarsPerKwh: 0.3,
-    dollarsPerLitre: 2.7,
-    isElectric: false,
-    kmPerLitre: 18,
-    kmPerKwh: 6.25,
-    name: "Efficient petrol",
-    opex: 1800,
-    rucPer1000Km: 0,
-  },
-  {
-    capex: 52000,
-    dollarsPerKwh: 0.3,
-    dollarsPerLitre: 2.7,
-    isElectric: true,
-    kmPerLitre: 18,
-    kmPerKwh: 6.25,
-    name: "Electric option",
-    opex: 1100,
-    rucPer1000Km: 76,
-  },
-];
-
-const currency = new Intl.NumberFormat("en-NZ", {
-  currency: "NZD",
-  maximumFractionDigits: 0,
-  style: "currency",
-});
-
-const currencyPrecise = new Intl.NumberFormat("en-NZ", {
-  currency: "NZD",
-  maximumFractionDigits: 2,
-  minimumFractionDigits: 2,
-  style: "currency",
-});
-
-const numberFormat = new Intl.NumberFormat("en-NZ");
-
-const positiveNumber = (value: number, fallback = 0) =>
-  Number.isFinite(value) && value > 0 ? value : fallback;
-
-const calculateTotals = (car: CarForm, assumptions: Assumptions): CarTotals => {
-  const annualKm = positiveNumber(assumptions.annualKm);
-  const ownershipYears = positiveNumber(assumptions.ownershipYears, 1);
-  const energyCostPerKm = car.isElectric
-    ? positiveNumber(car.dollarsPerKwh) / positiveNumber(car.kmPerKwh, 1)
-    : positiveNumber(car.dollarsPerLitre) / positiveNumber(car.kmPerLitre, 1);
-  const annualEnergyCost = annualKm * energyCostPerKm;
-  const annualRucCost = (annualKm / 1000) * positiveNumber(car.rucPer1000Km);
-  const annualRunningCost =
-    positiveNumber(car.opex) + annualEnergyCost + annualRucCost;
-  const ownershipTotal =
-    positiveNumber(car.capex) + annualRunningCost * ownershipYears;
-
-  return {
-    annualEnergyCost,
-    annualRucCost,
-    annualRunningCost,
-    costPerKm: ownershipTotal / (annualKm * ownershipYears || 1),
-    energyCostPerKm,
-    ownershipTotal,
-    rawCostPerKm: annualRunningCost / (annualKm || 1),
-  };
-};
-
-const updateCar = (
-  cars: [CarForm, CarForm],
-  index: number,
-  patch: Partial<CarForm>,
-): [CarForm, CarForm] =>
-  cars.map((car, carIndex) =>
-    carIndex === index ? { ...car, ...patch } : car,
-  ) as [CarForm, CarForm];
-
-const readNumber = (value: string) => {
-  const parsed = Number(value);
-
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const CostInput = ({
-  description,
-  id,
-  label,
-  min = 0,
-  onChange,
-  step = 1,
-  value,
-}: {
-  description?: string;
-  id: string;
-  label: string;
-  min?: number;
-  onChange: (value: number) => void;
-  step?: number;
-  value: number;
-}) => (
-  <Field>
-    <FieldLabel htmlFor={id}>{label}</FieldLabel>
-    <Input
-      id={id}
-      min={min}
-      onChange={(event) => onChange(readNumber(event.target.value))}
-      step={step}
-      type="number"
-      value={value}
-    />
-    {description ? <FieldDescription>{description}</FieldDescription> : null}
-  </Field>
-);
-
-const CarCostCard = ({
-  car,
-  index,
-  onChange,
-  totals,
-}: {
-  car: CarForm;
-  index: number;
-  onChange: (index: number, patch: Partial<CarForm>) => void;
-  totals: CarTotals;
-}) => {
-  const carId = `car-${index}`;
-
-  return (
-    <Card className="rounded-lg">
-      <CardHeader>
-        <CardTitle>
-          <Input
-            aria-label={`Car ${index + 1} name`}
-            className="h-9 border-transparent bg-muted/55 px-3 text-base font-medium"
-            onChange={(event) => onChange(index, { name: event.target.value })}
-            value={car.name}
-          />
-        </CardTitle>
-        <CardDescription>
-          {car.isElectric ? "Electric energy model" : "Fuel energy model"}
-        </CardDescription>
-        <CardAction>
-          <Badge variant={car.isElectric ? "default" : "secondary"}>
-            {car.isElectric ? "EV" : "Fuel"}
-          </Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg bg-muted/55 p-3">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <WalletCards aria-hidden="true" />
-              <span className="text-xs font-medium uppercase">Total</span>
-            </div>
-            <p className="mt-2 text-2xl font-semibold">
-              {currency.format(totals.ownershipTotal)}
-            </p>
-          </div>
-          <div className="rounded-lg bg-muted/55 p-3">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Gauge aria-hidden="true" />
-              <span className="text-xs font-medium uppercase">Total / km</span>
-            </div>
-            <p className="mt-2 text-2xl font-semibold">
-              {currencyPrecise.format(totals.costPerKm)}
-            </p>
-          </div>
-          <div className="rounded-lg bg-muted/55 p-3">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Fuel aria-hidden="true" />
-              <span className="text-xs font-medium uppercase">Raw / km</span>
-            </div>
-            <p className="mt-2 text-2xl font-semibold">
-              {currencyPrecise.format(totals.rawCostPerKm)}
-            </p>
-          </div>
-        </div>
-
-        <FieldSet>
-          <FieldGroup>
-            <Field orientation="horizontal">
-              <Switch
-                checked={car.isElectric}
-                id={`${carId}-electric`}
-                onCheckedChange={(checked) =>
-                  onChange(index, { isElectric: checked })
-                }
-              />
-              <FieldContent>
-                <FieldLabel htmlFor={`${carId}-electric`}>
-                  Electric car
-                </FieldLabel>
-                <FieldDescription>
-                  Switches fuel inputs to electricity inputs.
-                </FieldDescription>
-              </FieldContent>
-            </Field>
-
-            <CostInput
-              id={`${carId}-capex`}
-              label="Capex: cost of car"
-              onChange={(capex) => onChange(index, { capex })}
-              value={car.capex}
-            />
-            <CostInput
-              description="Annual operational costs excluding fuel or charging."
-              id={`${carId}-opex`}
-              label="Opex per year"
-              onChange={(opex) => onChange(index, { opex })}
-              value={car.opex}
-            />
-            <CostInput
-              description="Road User Charges in NZD per 1,000 km. Leave at 0 if already covered by petrol fuel levies."
-              id={`${carId}-ruc`}
-              label="RUC dollars per 1,000 km"
-              onChange={(rucPer1000Km) => onChange(index, { rucPer1000Km })}
-              value={car.rucPer1000Km}
-            />
-
-            <Separator />
-
-            {car.isElectric ? (
-              <>
-                <CostInput
-                  description="NZD paid per kWh from home, public charging, or a blended estimate."
-                  id={`${carId}-dollars-kwh`}
-                  label="Dollars per kWh"
-                  onChange={(dollarsPerKwh) =>
-                    onChange(index, { dollarsPerKwh })
-                  }
-                  step={0.01}
-                  value={car.dollarsPerKwh}
-                />
-                <CostInput
-                  description="Vehicle efficiency. 6.25 km/kWh is a sensible compact EV default."
-                  id={`${carId}-km-kwh`}
-                  label="Kilometres per kWh"
-                  onChange={(kmPerKwh) => onChange(index, { kmPerKwh })}
-                  step={0.01}
-                  value={car.kmPerKwh}
-                />
-              </>
-            ) : (
-              <>
-                <CostInput
-                  description="NZD paid for each litre of fuel."
-                  id={`${carId}-dollars-litre`}
-                  label="Dollars per litre"
-                  onChange={(dollarsPerLitre) =>
-                    onChange(index, { dollarsPerLitre })
-                  }
-                  step={0.01}
-                  value={car.dollarsPerLitre}
-                />
-                <CostInput
-                  description="Vehicle economy in kilometres per litre."
-                  id={`${carId}-km-litre`}
-                  label="Kilometres per litre"
-                  onChange={(kmPerLitre) => onChange(index, { kmPerLitre })}
-                  step={0.1}
-                  value={car.kmPerLitre}
-                />
-              </>
-            )}
-          </FieldGroup>
-        </FieldSet>
-      </CardContent>
-      <CardFooter className="grid gap-3 rounded-b-lg sm:grid-cols-2">
-        <FooterMetric
-          label="Energy per year"
-          value={currency.format(totals.annualEnergyCost)}
-        />
-        <FooterMetric
-          label="RUC per year"
-          value={currency.format(totals.annualRucCost)}
-        />
-      </CardFooter>
-    </Card>
-  );
-};
-
-const ComparisonPanel = ({
-  assumptions,
-  cars,
-  totals,
-}: {
-  assumptions: Assumptions;
-  cars: [CarForm, CarForm];
-  totals: [CarTotals, CarTotals];
-}) => {
-  const cheaperIndex =
-    totals[0].ownershipTotal <= totals[1].ownershipTotal ? 0 : 1;
-  const difference = Math.abs(
-    totals[0].ownershipTotal - totals[1].ownershipTotal,
-  );
-  const largestTotal = Math.max(
-    totals[0].ownershipTotal,
-    totals[1].ownershipTotal,
-  );
-
-  return (
-    <Card className="rounded-lg">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Scale aria-hidden="true" />
-          Comparison
-        </CardTitle>
-        <CardDescription>
-          Total cost includes capex, opex, energy, and RUC over the selected
-          period.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <div>
-          <p className="text-sm text-muted-foreground">Lower-cost option</p>
-          <p className="mt-1 text-3xl font-semibold">
-            {cars[cheaperIndex].name}
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Saves {currency.format(difference)} over the ownership period.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {cars.map((car, index) => {
-            const width = `${Math.max(
-              8,
-              (totals[index].ownershipTotal / largestTotal) * 100,
-            )}%`;
-
-            return (
-              <div className="flex flex-col gap-2" key={index}>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium">{car.name}</span>
-                  <span className="text-muted-foreground">
-                    {currency.format(totals[index].ownershipTotal)}
-                  </span>
-                </div>
-                <div className="h-3 rounded-full bg-muted">
-                  <div
-                    className="h-3 rounded-full bg-primary"
-                    style={{ width }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-      <CardFooter className="grid gap-3 rounded-b-lg md:grid-cols-3">
-        <FooterMetric
-          label="Car 1 per km"
-          value={currencyPrecise.format(totals[0].costPerKm)}
-        />
-        <FooterMetric
-          label="Car 2 per km"
-          value={currencyPrecise.format(totals[1].costPerKm)}
-        />
-        <FooterMetric
-          label="Annual km"
-          value={numberFormat.format(assumptions.annualKm)}
-        />
-      </CardFooter>
-    </Card>
-  );
-};
-
-const FooterMetric = ({ label, value }: { label: string; value: string }) => (
-  <div>
-    <p className="text-xs font-medium text-muted-foreground uppercase">
-      {label}
-    </p>
-    <p className="text-base font-semibold">{value}</p>
-  </div>
-);
-
-const AssumptionCard = ({
-  assumptions,
-  onChange,
-  onReset,
-}: {
-  assumptions: Assumptions;
-  onChange: (patch: Partial<Assumptions>) => void;
-  onReset: () => void;
-}) => (
-  <Card className="rounded-lg">
-    <CardHeader>
-      <CardTitle>Usage assumptions</CardTitle>
-      <CardDescription>
-        Shared distance and ownership period for both cars.
-      </CardDescription>
-      <CardAction>
-        <Button onClick={onReset} size="sm" type="button" variant="outline">
-          <RotateCcw data-icon="inline-start" />
-          Reset
-        </Button>
-      </CardAction>
-    </CardHeader>
-    <CardContent>
-      <FieldGroup className="grid gap-4 md:grid-cols-2">
-        <CostInput
-          id="annual-km"
-          label="Kilometres per year"
-          onChange={(annualKm) => onChange({ annualKm })}
-          value={assumptions.annualKm}
-        />
-        <CostInput
-          id="ownership-years"
-          label="Ownership years"
-          onChange={(ownershipYears) => onChange({ ownershipYears })}
-          step={0.5}
-          value={assumptions.ownershipYears}
-        />
-      </FieldGroup>
-    </CardContent>
-  </Card>
-);
 
 export const App = () => {
-  const [assumptions, setAssumptions] = useState(defaultAssumptions);
-  const [cars, setCars] = useState(defaultCars);
-  const totals = useMemo(
-    () =>
-      cars.map((car) => calculateTotals(car, assumptions)) as [
-        CarTotals,
-        CarTotals,
-      ],
-    [assumptions, cars],
+  const [market, setMarket] = useState<MarketData>(fallbackMarket);
+  const [loading, setLoading] = useState(true);
+  const [cars, setCars] = useState<[Car, Car]>(() =>
+    structuredClone(defaultCars),
   );
-
-  const handleCarChange = (index: number, patch: Partial<CarForm>) => {
-    setCars((currentCars) => updateCar(currentCars, index, patch));
+  const [usage, setUsage] = useState<Usage>(defaultUsage);
+  const refresh = useCallback(async (force = false, signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      setMarket(await fetchMarket(force, signal));
+    } catch {
+      if (!signal?.aborted)
+        setMarket((current) => ({
+          ...current,
+          errors: [
+            "Price service unavailable. Saved reference fees and example or previously fetched prices remain available.",
+          ],
+        }));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(false, controller.signal);
+    const timer = window.setInterval(
+      () => {
+        void refresh();
+      },
+      6 * 60 * 60 * 1000,
+    );
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [refresh]);
+  const update = (index: number, patch: Partial<Car>) => {
+    if (patch.type) {
+      const key = priceKey({ ...cars[index], ...patch });
+      patch = {
+        ...patch,
+        price: market.prices[key].value,
+        consumptionPresetId: null,
+        electricFuelEfficiency: 0,
+      };
+    }
+    setCars(
+      (current) =>
+        current.map((car, i) => (i === index ? { ...car, ...patch } : car)) as [
+          Car,
+          Car,
+        ],
+    );
   };
-
-  const handleReset = () => {
-    setAssumptions(defaultAssumptions);
-    setCars(defaultCars);
-  };
-
   return (
-    <main className="min-h-svh bg-background">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 md:px-8 md:py-8">
-        <header className="grid gap-4 border-b pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
+    <main className="min-h-svh">
+      <div className="app-shell">
+        <nav aria-label="Brand" className="app-nav">
+          <a className="brand" href="#">
+            <span className="brand-mark">
+              <CarFront aria-hidden="true" />
+            </span>
+            roadwise<span className="brand-country">NZ</span>
+          </a>
+          <span className="text-xs text-muted-foreground">
+            Make your next vehicle add up.
+          </span>
+        </nav>
+        <header className="page-heading">
           <div>
-            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Fuel aria-hidden="true" />
-              <span>NZD ownership calculator</span>
-              <BatteryCharging aria-hidden="true" />
-            </div>
-            <h1 className="max-w-3xl text-3xl font-semibold text-balance md:text-5xl">
-              Compare the true cost of two cars.
+            <Badge variant="outline">
+              <Check data-icon="inline-start" />
+              Built for New Zealand
+            </Badge>
+            <h1>
+              A smarter way
+              <br />
+              to compare vehicles<span>.</span>
             </h1>
+            <p>
+              From the pump to the plug, see what your next vehicle really
+              costs.
+            </p>
           </div>
-          <p className="max-w-md text-sm leading-6 text-muted-foreground">
-            Enter capex, annual opex, RUC, and fuel or electricity efficiency.
-            The model converts everything to total ownership cost and cost per
-            km.
-          </p>
+          <div className="heading-note">
+            <span className="eyebrow">The whole picture</span>
+            <p>Two vehicles. One clear comparison.</p>
+            <span>Energy, rego and road charges included.</span>
+          </div>
         </header>
-
-        <AssumptionCard
-          assumptions={assumptions}
-          onChange={(patch) =>
-            setAssumptions((currentAssumptions) => ({
-              ...currentAssumptions,
-              ...patch,
-            }))
-          }
-          onReset={handleReset}
+        <MarketTracker
+          market={market}
+          loading={loading}
+          refresh={() => {
+            void refresh(true);
+          }}
         />
-
-        <section className="grid gap-6 lg:grid-cols-[1fr_1fr_0.9fr]">
-          {cars.map((car, index) => (
-            <CarCostCard
-              car={car}
-              index={index}
-              key={index}
-              onChange={handleCarChange}
-              totals={totals[index]}
-            />
-          ))}
-          <ComparisonPanel
-            assumptions={assumptions}
-            cars={cars}
-            totals={totals}
-          />
+        <Card className="usage-card">
+          <CardHeader>
+            <CardTitle>Your time on the road</CardTitle>
+            <CardDescription>
+              A shared driving plan for both options.
+            </CardDescription>
+            <CardAction>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setCars(structuredClone(defaultCars));
+                  setUsage(defaultUsage);
+                }}
+              >
+                <RotateCcw data-icon="inline-start" />
+                Reset
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup className="grid gap-4 sm:grid-cols-2">
+              <NumberField
+                id="annual-km"
+                label="Distance per year"
+                value={usage.annualKm}
+                onChange={(annualKm) => setUsage((u) => ({ ...u, annualKm }))}
+                unit="km"
+                step={1000}
+              />
+              <NumberField
+                id="ownership-years"
+                label="Ownership period"
+                value={usage.years}
+                onChange={(years) => setUsage((u) => ({ ...u, years }))}
+                unit="years"
+                step={0.5}
+                min={0.5}
+              />
+            </FieldGroup>
+          </CardContent>
+        </Card>
+        <section
+          className="calculator-layout"
+          aria-label="Vehicle cost comparison"
+        >
+          <div className="vehicle-grid">
+            {cars.map((car, index) => (
+              <VehicleCard
+                key={index}
+                car={car}
+                index={index}
+                market={market}
+                onChange={(patch) => update(index, patch)}
+              />
+            ))}
+          </div>
+          <Comparison cars={cars} usage={usage} market={market} />
         </section>
+        <footer className="site-footer">
+          <p>Made for the roads of Aotearoa.</p>
+          <div className="flex flex-wrap gap-4">
+            <a href={sourceUrls.gaspy} target="_blank" rel="noreferrer">
+              Gaspy fuel prices ↗
+            </a>
+            <a href={sourceUrls.electricity} target="_blank" rel="noreferrer">
+              MBIE electricity ↗
+            </a>
+            <a href={sourceUrls.rego} target="_blank" rel="noreferrer">
+              NZTA rego ↗
+            </a>
+            <a href={sourceUrls.ruc} target="_blank" rel="noreferrer">
+              NZTA RUC ↗
+            </a>
+          </div>
+          <p className="w-full">
+            {market.feesCheckedAt.rego
+              ? `Rego checked ${dateLabel(market.feesCheckedAt.rego)}.`
+              : "Rego reference schedule: from 1 July 2026; not freshly verified."}{" "}
+            {market.feesCheckedAt.ruc
+              ? `RUC checked ${dateLabel(market.feesCheckedAt.ruc)}.`
+              : "RUC reference rates: $76 light vehicles / $38 petrol PHEVs; not freshly verified."}{" "}
+            Rego means annual vehicle licensing, not first registration.
+          </p>
+        </footer>
       </div>
     </main>
   );
